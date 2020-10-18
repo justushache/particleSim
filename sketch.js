@@ -1,7 +1,7 @@
 // velocity = mm/s
 // pos = mm from origin
 // size = mm
-let SPEED = 1000 // calculations per second in the model
+let SPEED = 100 // calculations per second in the model
 let particles
 let walls
 function setup() {
@@ -9,25 +9,35 @@ function setup() {
   // create array of particles
   // create array of walls
   walls = createWalls()
-  particles = [new Particle(createVector(5,200),10,createVector(150,50))]
+  particles = []
+  frameRate(60)
 }
+
+
 function draw() {
   background(220);
   //update all particles
-  particles.forEach(part => part.update(particles, walls))
+  particles.forEach((part, index) =>{
+    if(!part.update(particles, walls)){
+      particles.splice(index, 1)
+    }
+
+  })
   //draw all walls
   walls.forEach(wall => wall.draw())
   //draw all particles
   particles.forEach(part => part.draw())
-  frameRate(SPEED)
-  if(frameCount%1 == 0){
-    particles.push(new Particle(createVector(5,200+random(10)),2,createVector(30,random(-5,-2))))
+  if(frameCount%3 == 0){
+    particles.push(new Particle(createVector(399.99,200-random(10)),2,createVector(-350,random(-5,-2))))
   }
 }
 
 function createWalls(){
   let walls = []
   walls.push(new Wall(createVector(0,220),createVector(60,200),5))
+  walls.push(new Wall(createVector(60,200),createVector(80,200),5))
+  walls.push(new Wall(createVector(0,220),createVector(0,200),5))
+  walls.push(new Wall(createVector(400,200),createVector(400,180),5))
   valve(0,1.5,walls)
   valve(160,1.5,walls)
   valve(320,1.5,walls)
@@ -56,7 +66,7 @@ class Wall{
     this.pt1 = pt1
     this.pt2 = pt2
     this.n = pt1.copy().sub(pt2)
-    this.thickness = thickness
+    this.thickness = thickness/5
   }
   //function to draw a wall
   draw(){
@@ -80,8 +90,11 @@ class Particle{
     for(let i = 0; i < particles.length; i++){
       let particle = particles[i]
       let force = this.pos.copy().sub(particle.pos)
-      if(force.mag()>20)
-      this.velocity.add(force.mult(1/(force.mag())))
+      if(force.mag()<20){
+        console.log(force.mag())
+        this.velocity.add(force.normalize().mult(1/(force.mag())))
+        particle.velocity.add(force.normalize().mult(1+-1/(force.mag())))
+      }
     }
     
     //reflect particles off walls and calculate new velocity
@@ -94,17 +107,26 @@ class Particle{
     //calculate new position of particle
     this.pos.x += this.velocity.x/SPEED
     this.pos.y += this.velocity.y/SPEED
+    if(this.pos.x>400||this.pos.x<0||this.pos.y>400||this.pos.y<0){
+      return false
+    }
+    return true
   }
   reflectOfWall(wall){
-    let a = wall.pt1.copy().sub(wall.pt2)
-    let b = wall.pt2.copy().sub(this.pos)
-    let c = this.pos.copy().sub(this.velocity.copy().div(SPEED))
+    let b = wall.pt1.copy().sub(wall.pt2)
+    let c = wall.pt2.copy().sub(this.pos)
+    let a = this.velocity.copy().div(SPEED)
     
     //a particle should be reflected, if its path intersects with a line
-    let facA = b.y*c.x-b.x*c.y/(a.y*b.x-a.x*b.y)
-    let facB = c.y+facA*a.y/b.y
+    let facA = (b.y*c.x-b.x*c.y)/(a.x*b.y-a.y*b.x)
+    let facB = -(c.y-facA*a.y)/b.y
+    //if by is 0, facB is not a number
+    if(b.y==0){
+      facB =-(c.x-facA*a.x)/b.x
+    }
     
-    if(facA<1){
+
+    if(facA<=1&&facA>=0&&facB<=1&&facB>=0){
       console.log("inside")
       this.velocity = this.velocity.rotate(this.velocity.angleBetween(wall.n)*2)
       return true;
