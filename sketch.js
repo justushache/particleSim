@@ -1,136 +1,103 @@
-// velocity = mm/s
-// pos = mm from origin
-// size = mm
-let SPEED = 100 // calculations per second in the model
-let particles
-let walls
+let pxls
+let velos
+let rows = 400
+let cols = 400
+
 function setup() {
   createCanvas(400, 400);
-  // create array of particles
-  // create array of walls
-  walls = createWalls()
-  particles = []
-  frameRate(60)
+  pxls=new Float32Array(rows*cols)
+  velos=new Float32Array(rows*cols*2)
+  velos.fill(1)
+  
+  
+  for(let y = 0; y < rows;y++) {
+    for(let x = 0; x < cols;x++) {
+      pxls[y*rows+x] = noise(x*1.0/255.0,y*1.0/255.0)*200
+    }
+  }
 }
-
 
 function draw() {
-  background(220);
-  //update all particles
-  particles.forEach((part, index) =>{
-    if(!part.update(particles, walls)){
-      particles.splice(index, 1)
-    }
-
-  })
-  //draw all walls
-  walls.forEach(wall => wall.draw())
-  //draw all particles
-  particles.forEach(part => part.draw())
-  if(frameCount%3 == 0){
-    particles.push(new Particle(createVector(399.99,200-random(10)),2,createVector(-350,random(-5,-2))))
-  }
-}
-
-function createWalls(){
-  let walls = []
-  walls.push(new Wall(createVector(0,220),createVector(60,200),5))
-  walls.push(new Wall(createVector(60,200),createVector(80,200),5))
-  walls.push(new Wall(createVector(0,220),createVector(0,200),5))
-  walls.push(new Wall(createVector(400,200),createVector(400,180),5))
-  valve(0,1.5,walls)
-  valve(160,1.5,walls)
-  valve(320,1.5,walls)
-  valve(80,-1.5,walls)
-  valve(240,-1.5,walls)
-  valve(400,-1.5,walls)
-  return walls
-}
-
-function valve(x,dir,walls){
-  walls.push(new Wall(createVector(x+0,200-0*dir),createVector(x+30,200-10*dir),5))
-  walls.push(new Wall(createVector(x+30,200-10*dir),createVector(x+100,200-50*dir),5))
-  walls.push(new Wall(createVector(x+100,200-50*dir),createVector(x+120,200-50*dir),5))
-  walls.push(new Wall(createVector(x+120,200-50*dir),createVector(x+140,200-30*dir),5))
-  walls.push(new Wall(createVector(x+140,200-30*dir),createVector(x+130,200-0*dir),5))
-  walls.push(new Wall(createVector(x+130,200-0*dir),createVector(x+160,200-0*dir),5))
+  frameRate(60)
   
-  walls.push(new Wall(createVector(x+60,200-10*dir),createVector(x+100,200-30*dir),5))
-  walls.push(new Wall(createVector(x+100,200-30*dir),createVector(x+100,200-10*dir),5))
-  walls.push(new Wall(createVector(x+100,200-10*dir),createVector(x+60,200-10*dir),5))
-  return walls
-}
-
-class Wall{
-  constructor(pt1,pt2,thickness){
-    this.pt1 = pt1
-    this.pt2 = pt2
-    this.n = pt1.copy().sub(pt2)
-    this.thickness = thickness/5
-  }
-  //function to draw a wall
-  draw(){
-      strokeWeight(this.thickness)
-      line(this.pt1.x,this.pt1.y,this.pt2.x,this.pt2.y)
+  loadPixels()
+  background(100);
+  for(let y = 0; y < rows;y++) {
+    for(let x = 0; x < cols;x++) {
+      updateVelo(x,y)
+      updatePxl(x,y)
+      
+      let pos = getPos(x,y)
+      pixels[pos*4] = Math.floor(pxls[pos])
+      pixels[pos*4+1] = Math.floor(pxls[pos])
+      pixels[pos*4+2] = Math.floor(pxls[pos])
+      pixels[pos*4+3] = 255
     }
+  }
+  updatePixels();
+}
+function getPos(x,y){
+  return x+rows*y
 }
 
-class Particle{
-  constructor(pos, size, velocity){
-    this.pos = pos
-    this.size = size
-    this.velocity = velocity
-  }
-  draw(){
-    circle(this.pos.x, this.pos.y, this.size)
+function updateVelo(x,y){
+  //calculates x and y velocity, negativ will be to left top
+  //velo will be increased, if the pixel right or bottom has a higher value, than the oposite pxl
+  let top = getPos(x,y-1)
+  let bottom = getPos(x,y+1)
+  let left = getPos(x-1,y)
+  let right = getPos(x+1,y)
+  let pos = getPos(x,y)
+  let diffx = 0
+  let diffy = 0
+  
+  if(x>0 && x<399){
+    diffx = pxls[right] - pxls[left]
   }
   
-  update(particles, walls){
-    //calculate forces between particles and new velocity
-    for(let i = 0; i < particles.length; i++){
-      let particle = particles[i]
-      let force = this.pos.copy().sub(particle.pos)
-      if(force.mag()<20){
-        console.log(force.mag())
-        this.velocity.add(force.normalize().mult(1/(force.mag())))
-        particle.velocity.add(force.normalize().mult(1+-1/(force.mag())))
-      }
-    }
-    
-    //reflect particles off walls and calculate new velocity
-    for(let i = 0; i < walls.length; i++){
-      let wall = walls[i]
-      if(this.reflectOfWall(wall)){
-        break
-      }
-    }
-    //calculate new position of particle
-    this.pos.x += this.velocity.x/SPEED
-    this.pos.y += this.velocity.y/SPEED
-    if(this.pos.x>400||this.pos.x<0||this.pos.y>400||this.pos.y<0){
-      return false
-    }
-    return true
+  if(y>0 && y<399){
+    diffy = pxls[bottom] - pxls[top]
   }
-  reflectOfWall(wall){
-    let b = wall.pt1.copy().sub(wall.pt2)
-    let c = wall.pt2.copy().sub(this.pos)
-    let a = this.velocity.copy().div(SPEED)
-    
-    //a particle should be reflected, if its path intersects with a line
-    let facA = (b.y*c.x-b.x*c.y)/(a.x*b.y-a.y*b.x)
-    let facB = -(c.y-facA*a.y)/b.y
-    //if by is 0, facB is not a number
-    if(b.y==0){
-      facB =-(c.x-facA*a.x)/b.x
-    }
-    
+  
+  velos[pos*2] -= diffx/10
+  velos[pos*2+1] -= diffy/10
+  
+  if(x==20&&y==20){
+    console.log(diffx)
+    console.log(diffy)
+    console.log(pxls[bottom])
+    console.log(pxls[top])
+    console.log(pxls[left])
+    console.log(pxls[right])
+  }
+  
+}
 
-    if(facA<=1&&facA>=0&&facB<=1&&facB>=0){
-      console.log("inside")
-      this.velocity = this.velocity.rotate(this.velocity.angleBetween(wall.n)*2)
-      return true;
-    }
-    return false;
+
+function updatePxl(x,y){
+  let top = getPos(x,y-1)
+  let bottom = getPos(x,y+1)
+  let left = getPos(x-1,y)
+  let right = getPos(x+1,y)
+  let pos = getPos(x,y)
+  let velx = velos[pos*2]
+  let vely = velos[pos*2+1]
+  
+  curr = pxls[pos]
+  
+  curr-=Math.abs(velx/100)
+  if(velx>0){
+    pxls[right]+=velx/100
+  }else{
+    pxls[left]-=velx/100
   }
+  
+  curr-=Math.abs(vely/100)
+  if(vely>0){
+    pxls[bottom]+=vely/100
+  }else{
+    pxls[top]-=vely/100
+  }
+  
+  pxls[pos] = curr
 }
